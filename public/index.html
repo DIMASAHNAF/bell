@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bell System</title>
+    <link rel="icon" type="image/png" href="/assets/sekolah.png">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="logo">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="vertical-align: middle; margin-right: 8px;">
+                <path d="M15 17H20L18.5951 15.5951C18.2141 15.2141 18 14.6973 18 14.1585V11C18 8.38757 16.3304 6.16509 14 5.34142V5C14 3.89543 13.1046 3 12 3C10.8954 3 10 3.89543 10 5V5.34142C7.66962 6.16509 6 8.38757 6 11V14.1585C6 14.6973 5.78595 15.2141 5.40493 15.5951L4 17H9M15 17V18C15 19.6569 13.6569 21 12 21C10.3431 21 9 19.6569 9 18V17M15 17H9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Bell System
+        </div>
+        <div class="nav-links">
+            <a href="#" class="nav-link active" data-page="status">Status</a>
+            <a href="#" class="nav-link admin-only" data-page="jadwal" style="display:none;">Jadwal Bell</a>
+            <a href="#" class="nav-link admin-only" data-page="sounds" style="display:none;">Data Sound</a>
+            <a href="#" class="nav-link admin-only" data-page="history" style="display:none;">History</a>
+            <a href="#" class="nav-link admin-only" data-page="settings" style="display:none;">Settings</a>
+            <button id="logoutBtn" style="margin-left:12px;padding:8px 16px;background:#f44336;color:white;border:none;border-radius:4px;cursor:pointer;">Logout</button>
+        </div>
+    </nav>
+
+    <main class="container">
+        <!-- STATUS PAGE (User View) -->
+        <div id="page-status" class="page active">
+            <div class="card">
+                <div class="card-header">Status Bell System</div>
+                <div style="text-align:center;padding:40px 20px;">
+                    <div style="font-size:48px;font-weight:700;color:#667eea;margin-bottom:8px;" id="clock">--:--:--</div>
+                    <div style="font-size:18px;color:#666;margin-bottom:40px;" id="date">Loading...</div>
+                    
+                    <div id="statusIndicator" style="display:inline-block;padding:12px 24px;background:#4caf50;color:white;border-radius:24px;font-weight:600;margin-bottom:40px;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:8px;">
+                            <circle cx="12" cy="12" r="10" fill="currentColor"/>
+                        </svg>
+                        Sistem Aktif
+                    </div>
+                    
+                    <div id="nextBellInfo" style="background:#f5f5f5;padding:24px;border-radius:12px;"></div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">Jadwal Hari Ini</div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Waktu</th>
+                            <th>Kegiatan</th>
+                            <th>Kategori</th>
+                        </tr>
+                    </thead>
+                    <tbody id="todaySchedule"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- JADWAL PAGE (Admin) -->
+        <div id="page-jadwal" class="page admin-only" style="display:none;">
+            <div class="card">
+                <div class="card-header">Tambah Jadwal</div>
+                <form id="addForm" class="form">
+                    <div class="row">
+                        <div class="col">
+                            <label>Hari</label>
+                            <select id="hari" required>
+                                <option value="">Pilih...</option>
+                                <option>Senin</option>
+                                <option>Selasa</option>
+                                <option>Rabu</option>
+                                <option>Kamis</option>
+                                <option>Jumat</option>
+                            </select>
+                        </div>
+                        <div class="col">
+                            <label>Waktu</label>
+                            <input type="time" id="waktu" step="1" required>
+                        </div>
+                        <div class="col">
+                            <label>Nama</label>
+                            <input type="text" id="nama" placeholder="Upacara" required>
+                        </div>
+                        <div class="col">
+                            <label>Kategori</label>
+                            <select id="kategori" required>
+                                <option value="Upacara">Upacara</option>
+                                <option value="Pelajaran" selected>Pelajaran</option>
+                                <option value="Istirahat">Istirahat</option>
+                                <option value="Ekstrakurikuler">Ekstrakurikuler</option>
+                                <option value="Administrasi">Administrasi</option>
+                                <option value="Pulang">Pulang</option>
+                            </select>
+                        </div>
+                        <div class="col">
+                            <label>Sound</label>
+                            <div style="display:flex;gap:8px;">
+                                <select id="sound" required style="flex:1;">
+                                    <option value="">Pilih...</option>
+                                </select>
+                                <button type="button" id="previewSound" style="padding:8px 16px;background:#2196f3;color:white;border:none;border-radius:4px;cursor:pointer;">Preview</button>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="submit">Tambah</button>
+                </form>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    Daftar Jadwal
+                    <div style="float:right;display:flex;gap:8px;">
+                        <button id="exportJadwal" style="padding:6px 12px;background:#4caf50;color:white;border:none;border-radius:4px;cursor:pointer;font-size:13px;">Export JSON</button>
+                        <button id="importJadwal" style="padding:6px 12px;background:#ff9800;color:white;border:none;border-radius:4px;cursor:pointer;font-size:13px;">Import JSON</button>
+                        <input type="file" id="importFile" accept=".json" style="display:none;">
+                    </div>
+                </div>
+                <div id="nextBellIndicator" style="padding:12px;background:#e8f5e9;border-radius:4px;margin-bottom:12px;font-weight:600;color:#2e7d32;"></div>
+                <div id="dayTabs" style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;"></div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Waktu</th>
+                            <th>Kegiatan</th>
+                            <th>Sound</th>
+                            <th>Trigger</th>
+                            <th>Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="jadwalTable"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- SOUNDS PAGE (Admin) -->
+        <div id="page-sounds" class="page admin-only" style="display:none;">
+            <div class="card">
+                <div class="card-header">Upload Sound</div>
+                <form id="uploadForm" class="form">
+                    <input type="file" id="audioFile" accept=".mp3" required>
+                    <button type="submit">Upload</button>
+                </form>
+            </div>
+
+            <div class="card">
+                <div class="card-header">Daftar Sound</div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>No</th>
+                            <th>File</th>
+                            <th>Player</th>
+                            <th>Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="soundTable"></tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- HISTORY PAGE (Admin) -->
+        <div id="page-history" class="page admin-only" style="display:none;">
+            <div class="card">
+                <div class="card-header">
+                    Bell History Log
+                    <button id="exportLogs" style="float:right;padding:6px 12px;background:#4caf50;color:white;border:none;border-radius:4px;cursor:pointer;font-size:13px;">Export CSV</button>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Waktu Bunyi</th>
+                            <th>Kegiatan</th>
+                            <th>Tipe</th>
+                            <th>Triggered By</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTable"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- SETTINGS PAGE (Admin) -->
+        <div id="page-settings" class="page admin-only" style="display:none;">
+            <div class="card">
+                <div class="card-header">Volume Control</div>
+                <div style="padding:20px;">
+                    <label style="display:block;margin-bottom:12px;font-weight:600;">Master Volume</label>
+                    <div style="display:flex;align-items:center;gap:16px;">
+                        <input type="range" id="volumeSlider" min="0" max="1" step="0.1" value="0.8" style="flex:1;height:8px;">
+                        <span id="volumeValue" style="font-weight:600;min-width:40px;">80%</span>
+                    </div>
+                    <button id="testVolume" style="margin-top:16px;padding:10px 20px;background:#2196f3;color:white;border:none;border-radius:4px;cursor:pointer;">Test Volume</button>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">Skip Days (Libur)</div>
+                <form id="skipDayForm" style="padding:20px;display:flex;gap:12px;align-items:flex-end;">
+                    <div style="flex:1;">
+                        <label style="display:block;margin-bottom:8px;font-weight:600;">Tanggal</label>
+                        <input type="date" id="skipDate" required style="width:100%;padding:10px;border:2px solid #e0e0e0;border-radius:6px;">
+                    </div>
+                    <div style="flex:2;">
+                        <label style="display:block;margin-bottom:8px;font-weight:600;">Keterangan</label>
+                        <input type="text" id="skipNote" placeholder="Libur Nasional" required style="width:100%;padding:10px;border:2px solid #e0e0e0;border-radius:6px;">
+                    </div>
+                    <button type="submit" style="padding:10px 20px;background:#10b981;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Tambah</button>
+                </form>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Tanggal</th>
+                            <th>Keterangan</th>
+                            <th>Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="skipDaysTable"></tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+</html>
