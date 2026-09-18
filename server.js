@@ -1,18 +1,22 @@
+require('dotenv').config();
 const express = require('express');
 const initSqlJs = require('sql.js');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const { exec } = require('child_process');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || '0.0.0.0';
+const DB_FILE = process.env.DB_PATH || path.join(__dirname, 'database.db');
 
 let db;
 
 // Initialize database
 async function initDB() {
     const SQL = await initSqlJs();
-    const dbPath = path.join(__dirname, 'database.db');
+    const dbPath = DB_FILE;
     
     if (fs.existsSync(dbPath)) {
         const buffer = fs.readFileSync(dbPath);
@@ -111,7 +115,7 @@ async function initDB() {
 
 function saveDB() {
     const data = db.export();
-    fs.writeFileSync(path.join(__dirname, 'database.db'), Buffer.from(data));
+    fs.writeFileSync(DB_FILE, Buffer.from(data));
 }
 
 // Middleware
@@ -225,16 +229,36 @@ app.delete('/api/jadwal/:id', (req, res) => {
     res.json({ success: true });
 });
 
+// Server-side audio player function
+function playAudioServer(filename) {
+    if (!filename) return;
+    const filePath = path.join(__dirname, 'public', 'suara', filename);
+    if (fs.existsSync(filePath)) {
+        // Coba putar lewat mpg123
+        exec(`mpg123 -q "${filePath}"`, (err) => {
+            if (err) {
+                console.warn(`[Audio] Pemutaran lokal via mpg123: ${err.message}`);
+            } else {
+                console.log(`🔔 [Audio] Berhasil memutar di speaker server: ${filename}`);
+            }
+        });
+    } else {
+        console.warn(`[Audio] File audio tidak ditemukan: ${filePath}`);
+    }
+}
+
 // API: Manual trigger bell
 app.post('/api/bell/trigger/:id', (req, res) => {
     const { username } = req.body;
     const result = db.exec('SELECT * FROM jadwal WHERE id = ?', [req.params.id]);
     if (result.length > 0 && result[0].values.length > 0) {
         const row = result[0].values[0];
+        const audioFile = row[4];
+        playAudioServer(audioFile);
         db.run('INSERT INTO bell_logs (jadwal_id, waktu_bunyi, nama_kegiatan, trigger_type, triggered_by) VALUES (?, ?, ?, ?, ?)',
             [row[0], new Date().toISOString(), row[3], 'manual', username]);
         saveDB();
-        res.json({ success: true, file_audio: row[4] });
+        res.json({ success: true, file_audio: audioFile });
     } else {
         res.status(404).json({ error: 'Not found' });
     }
@@ -360,10 +384,64 @@ app.post('/api/jadwal/import', (req, res) => {
     res.json({ success: true, count: jadwal.length });
 });
 
+// Auto-scheduler di sisi server (24 Jam Non-Stop)
+let lastPlayedKeys = new Set();
+
+function checkServerSchedule() {
+    if (!db) return;
+    const now = new Date();
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const currentTime = `${hours}:${minutes}`;
+
+    const dayNames = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    const todayName = dayNames[now.getDay()];
+
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const date = String(now.getDate()).padStart(2, '0');
+    const todayDateStr = `${year}-${month}-${date}`;
+
+    // Reset log cache tengah malam
+    if (currentTime === '00:00' && lastPlayedKeys.size > 0) {
+        lastPlayedKeys.clear();
+    }
+
+    // Cek apakah hari ini skip/libur
+    const skipCheck = db.exec('SELECT * FROM skip_days WHERE tanggal = ?', [todayDateStr]);
+    if (skipCheck.length > 0 && skipCheck[0].values.length > 0) {
+        return;
+    }
+
+    const result = db.exec('SELECT * FROM jadwal WHERE hari = ?', [todayName]);
+    if (result.length > 0 && result[0].values.length > 0) {
+        result[0].values.forEach(row => {
+            const jadwalId = row[0];
+            const waktu = (row[2] || '').substring(0, 5);
+            const namaKegiatan = row[3];
+            const fileAudio = row[4];
+
+            const key = `${todayDateStr}_${jadwalId}_${currentTime}`;
+            if (waktu === currentTime && !lastPlayedKeys.has(key)) {
+                lastPlayedKeys.add(key);
+                console.log(`🔔 [AUTO-BELL SERVER] Membunyikan: ${namaKegiatan} (${waktu}) - ${fileAudio}`);
+                playAudioServer(fileAudio);
+
+                db.run('INSERT INTO bell_logs (jadwal_id, waktu_bunyi, nama_kegiatan, trigger_type, triggered_by) VALUES (?, ?, ?, ?, ?)',
+                    [jadwalId, `${todayDateStr} ${currentTime}`, namaKegiatan, 'auto_server', 'system']);
+                saveDB();
+            }
+        });
+    }
+}
+
 // Start server
 initDB().then(() => {
-    app.listen(PORT, () => {
-        console.log(`🔔 Bell System → http://localhost:${PORT}`);
+    app.listen(PORT, HOST, () => {
+        console.log(`🔔 Bell System running at http://${HOST}:${PORT}`);
+        // Mulai pengecekan jadwal otomatis di background server setiap 5 detik
+        setInterval(checkServerSchedule, 5000);
+        console.log('⏰ Server-side Bell Scheduler aktif (Cek setiap 5 detik)');
     });
 }).catch(err => {
     console.error('Init failed:', err);
