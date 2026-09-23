@@ -1,0 +1,21 @@
+[Unit]
+Description=Smart School Bell System
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/var/www/bel/bell
+ExecStartPre=-/bin/sh -c 'iptables -t nat -C PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 3000 2>/dev/null || iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 3000'
+ExecStartPre=-/bin/sh -c 'iptables -t nat -C OUTPUT -p tcp -o lo --dport 80 -j REDIRECT --to-port 3000 2>/dev/null || iptables -t nat -A OUTPUT -p tcp -o lo --dport 80 -j REDIRECT --to-port 3000'
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=3
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=HOST=0.0.0.0
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

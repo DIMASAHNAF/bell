@@ -1,6 +1,6 @@
 require('dotenv').config();
 const express = require('express');
-const initSqlJs = require('sql.js');
+const Database = require('better-sqlite3');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -15,15 +15,38 @@ let db;
 
 // Initialize database
 async function initDB() {
-    const SQL = await initSqlJs();
-    const dbPath = DB_FILE;
+    const bdb = new Database(DB_FILE);
     
-    if (fs.existsSync(dbPath)) {
-        const buffer = fs.readFileSync(dbPath);
-        db = new SQL.Database(buffer);
-    } else {
-        db = new SQL.Database();
-    }
+    db = {
+        run: (sql, params = []) => {
+            if (params && params.length > 0) {
+                return bdb.prepare(sql).run(...params);
+            } else {
+                return bdb.exec(sql);
+            }
+        },
+        exec: (sql, params = []) => {
+            try {
+                const stmt = bdb.prepare(sql);
+                if (!stmt.reader) {
+                    if (params && params.length > 0) stmt.run(...params);
+                    else bdb.exec(sql);
+                    return [];
+                }
+                const rows = (params && params.length > 0) ? stmt.all(...params) : stmt.all();
+                if (rows.length === 0) return [];
+                const columns = Object.keys(rows[0]);
+                const values = rows.map(row => columns.map(col => row[col]));
+                return [{ columns, values }];
+            } catch (err) {
+                console.error("SQL Error:", err, sql, params);
+                return [];
+            }
+        },
+        export: () => {
+            return Buffer.from([]);
+        }
+    };
     
     db.run(`
         CREATE TABLE IF NOT EXISTS jadwal (
@@ -114,8 +137,7 @@ async function initDB() {
 }
 
 function saveDB() {
-    const data = db.export();
-    fs.writeFileSync(DB_FILE, Buffer.from(data));
+    // Database is automatically saved to disk by better-sqlite3
 }
 
 // Middleware

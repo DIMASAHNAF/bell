@@ -131,14 +131,24 @@ async function loadSounds() {
 // Upload sound
 document.getElementById('uploadForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const file = document.getElementById('audioFile').files[0];
-    if (!file) return;
+    const files = document.getElementById('audioFile').files;
+    if (files.length === 0) return;
     
-    const formData = new FormData();
-    formData.append('audio', file);
+    const btn = e.target.querySelector('button[type="submit"]');
+    const originalText = btn.textContent;
+    btn.textContent = 'Uploading...';
+    btn.disabled = true;
+
+    for (let i = 0; i < files.length; i++) {
+        const formData = new FormData();
+        formData.append('audio', files[i]);
+        await fetch('/api/upload', { method: 'POST', body: formData });
+    }
     
-    await fetch('/api/upload', { method: 'POST', body: formData });
     document.getElementById('audioFile').value = '';
+    btn.textContent = originalText;
+    btn.disabled = false;
+    
     loadSounds();
     loadJadwal();
 });
