@@ -1,3 +1,4 @@
+
 // Auth check
 const user = JSON.parse(localStorage.getItem('user') || 'null');
 if (!user) {
@@ -16,6 +17,7 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
 
 let sounds = [];
 let jadwal = [];
+let kategoriList = [];
 let selectedDay = new Date().toLocaleDateString('id-ID', { weekday: 'long' }).charAt(0).toUpperCase() + 
                   new Date().toLocaleDateString('id-ID', { weekday: 'long' }).slice(1);
 const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'];
@@ -76,12 +78,30 @@ document.querySelectorAll('.nav-link').forEach(link => {
         document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
         link.classList.add('active');
         document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-        document.getElementById('page-' + page).classList.add('active');
+        const target = document.getElementById('page-' + page);
+        if (target) target.classList.add('active');
         
         if (page === 'sounds') loadSounds();
-        if (page === 'jadwal') renderTable();
+        if (page === 'jadwal') {
+            loadKategori();
+            renderTable();
+        }
+        if (page === 'kategori') loadKategori();
     });
 });
+
+function navigateToPage(pageName) {
+    const link = document.querySelector(`.nav-link[data-page="${pageName}"]`);
+    if (link) link.click();
+}
+
+const shortcutBtn = document.getElementById('btnKelolaKategoriShortcut');
+if (shortcutBtn) {
+    shortcutBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        navigateToPage('kategori');
+    });
+}
 
 // Day tabs
 function initDayTabs() {
@@ -169,33 +189,40 @@ async function loadJadwal() {
     updateStatusPage();
 }
 
-// Render table with filters
 function renderTable() {
     const tbody = document.getElementById('jadwalTable');
-    const filtered = jadwal.filter(j => j.hari === selectedDay);
+    let filtered = jadwal.filter(j => j.hari === selectedDay);
     
     if (filtered.length === 0) {
         tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#999;">Belum ada jadwal untuk ' + selectedDay + '</td></tr>';
         return;
     }
     
-    const grouped = {};
-    const order = ['Upacara', 'Pelajaran', 'Istirahat', 'Ekstrakurikuler', 'Administrasi', 'Pulang'];
+    // Sort all items chronologically first
+    filtered.sort((a, b) => a.waktu.localeCompare(b.waktu));
     
+    // Group contiguous items of the same category
+    const groupedArray = [];
+    let currentKat = null;
+    let currentGroup = null;
+
     filtered.forEach(item => {
         const kat = item.kategori || 'Pelajaran';
-        if (!grouped[kat]) grouped[kat] = [];
-        grouped[kat].push(item);
+        if (kat !== currentKat) {
+            currentKat = kat;
+            currentGroup = { kat: kat, items: [] };
+            groupedArray.push(currentGroup);
+        }
+        currentGroup.items.push(item);
     });
     
     const now = new Date();
     const currentTime = now.toTimeString().substring(0, 5);
     
     let html = '';
-    order.forEach(kat => {
-        if (!grouped[kat]) return;
-        html += `<tr style="background:#f0f0f0;"><td colspan="6" style="font-weight:600;padding:8px 12px;">${kat}</td></tr>`;
-        grouped[kat].forEach(item => {
+    groupedArray.forEach(group => {
+        html += `<tr style="background:#f0f0f0;"><td colspan="6" style="font-weight:600;padding:8px 12px;">${group.kat}</td></tr>`;
+        group.items.forEach(item => {
             const isActive = isTimeActive(item.waktu);
             const itemTime = item.waktu.substring(0, 5);
             const hasPassed = itemTime < currentTime;
@@ -302,6 +329,7 @@ function editJadwal(id) {
     document.getElementById('hari').value = item.hari;
     document.getElementById('waktu').value = item.waktu.substring(0, 5);
     document.getElementById('nama').value = item.nama_kegiatan;
+    updateKategoriSelect(item.kategori || 'Pelajaran');
     document.getElementById('kategori').value = item.kategori || 'Pelajaran';
     document.getElementById('sound').value = item.file_audio;
     
@@ -310,6 +338,161 @@ function editJadwal(id) {
     btn.dataset.editId = id;
     
     window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ==========================================
+// KATEGORI MANAGEMENT
+// ==========================================
+
+async function loadKategori() {
+    try {
+        const res = await fetch('/api/kategori');
+        kategoriList = await res.json();
+    } catch (err) {
+        console.error('Failed to load kategori:', err);
+    }
+    updateKategoriSelect();
+    renderKategoriTable();
+}
+
+function updateKategoriSelect(selectedValue = null) {
+    const sel = document.getElementById('kategori');
+    if (!sel) return;
+    
+    if (kategoriList.length === 0) {
+        sel.innerHTML = '<option value="Pelajaran">Pelajaran</option>';
+        return;
+    }
+    
+    sel.innerHTML = '<option value="">Pilih Kategori...</option>' + kategoriList.map(k => 
+        `<option value="${k.nama}" ${selectedValue === k.nama ? 'selected' : (k.nama === 'Pelajaran' && !selectedValue ? 'selected' : '')}>${k.nama}</option>`
+    ).join('');
+}
+
+function renderKategoriTable() {
+    const tbody = document.getElementById('kategoriTable');
+    if (!tbody) return;
+    
+    if (kategoriList.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#999;padding:20px;">Belum ada data kategori</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = kategoriList.map((k, idx) => `
+        <tr>
+            <td>${idx + 1}</td>
+            <td style="font-weight:600;font-size:15px;">
+                <span style="display:inline-block;padding:4px 12px;background:#e0f2fe;color:#0369a1;border-radius:16px;font-size:13px;font-weight:600;">
+                    ${k.nama}
+                </span>
+            </td>
+            <td>
+                <span style="display:inline-block;padding:4px 10px;background:${k.total_jadwal > 0 ? '#ecfdf5' : '#f3f4f6'};color:${k.total_jadwal > 0 ? '#047857' : '#6b7280'};border-radius:12px;font-size:12px;font-weight:600;">
+                    ${k.total_jadwal} Jadwal
+                </span>
+            </td>
+            <td class="actions">
+                <button class="secondary" onclick="editKategori(${k.id}, '${k.nama.replace(/'/g, "\\'")}')" style="padding:6px 12px;margin-right:6px;">Edit</button>
+                <button class="danger" onclick="deleteKategori(${k.id}, '${k.nama.replace(/'/g, "\\'")}', ${k.total_jadwal})" style="padding:6px 12px;">Hapus</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// Submit Form Tambah / Edit Kategori
+const kategoriForm = document.getElementById('kategoriForm');
+if (kategoriForm) {
+    kategoriForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const namaInput = document.getElementById('kategoriNama');
+        const editIdInput = document.getElementById('kategoriEditId');
+        const nama = namaInput.value.trim();
+        const editId = editIdInput.value;
+        
+        if (!nama) return;
+        
+        const submitBtn = document.getElementById('kategoriSubmitBtn');
+        const originalText = submitBtn.textContent;
+        submitBtn.textContent = 'Menyimpan...';
+        submitBtn.disabled = true;
+        
+        try {
+            let res;
+            if (editId) {
+                res = await fetch('/api/kategori/' + editId, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ nama })
+                });
+            } else {
+                res = await fetch('/api/kategori', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ nama })
+                });
+            }
+            
+            const data = await res.json();
+            if (data.error) {
+                alert(data.error);
+                return;
+            }
+            
+            resetKategoriForm();
+            await loadKategori();
+            await loadJadwal();
+        } catch (err) {
+            alert('Gagal menyimpan kategori: ' + err.message);
+        } finally {
+            submitBtn.textContent = originalText;
+            submitBtn.disabled = false;
+        }
+    });
+}
+
+function editKategori(id, currentName) {
+    document.getElementById('kategoriFormTitle').textContent = 'Edit Kategori: ' + currentName;
+    document.getElementById('kategoriNama').value = currentName;
+    document.getElementById('kategoriEditId').value = id;
+    document.getElementById('kategoriSubmitBtn').textContent = 'Update Kategori';
+    document.getElementById('kategoriCancelBtn').style.display = 'inline-block';
+    document.getElementById('kategoriNama').focus();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function resetKategoriForm() {
+    document.getElementById('kategoriFormTitle').textContent = 'Tambah Kategori Baru';
+    document.getElementById('kategoriNama').value = '';
+    document.getElementById('kategoriEditId').value = '';
+    document.getElementById('kategoriSubmitBtn').textContent = 'Tambah Kategori';
+    document.getElementById('kategoriCancelBtn').style.display = 'none';
+}
+
+const cancelBtn = document.getElementById('kategoriCancelBtn');
+if (cancelBtn) {
+    cancelBtn.addEventListener('click', resetKategoriForm);
+}
+
+async function deleteKategori(id, nama, totalJadwal) {
+    let msg = `Yakin ingin menghapus kategori "${nama}"?`;
+    if (totalJadwal > 0) {
+        msg = `⚠️ PERINGATAN:\nKategori "${nama}" saat ini sedang digunakan oleh ${totalJadwal} jadwal.\n\nJika kategori ini dihapus, ${totalJadwal} jadwal tersebut akan dialihkan otomatis ke kategori "Pelajaran".\n\nApakah Anda yakin ingin melanjutkan hapus?`;
+    }
+    
+    if (!confirm(msg)) return;
+    
+    try {
+        const res = await fetch('/api/kategori/' + id, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.error) {
+            alert(data.error);
+            return;
+        }
+        await loadKategori();
+        await loadJadwal();
+    } catch (err) {
+        alert('Gagal menghapus kategori: ' + err.message);
+    }
 }
 
 // Auto-play logic
@@ -371,14 +554,38 @@ async function manualTrigger(id, filename) {
     if (user.role === 'admin') loadHistory();
 }
 
+let currentPreviewAudio = null;
+
 // Preview sound
-document.getElementById('previewSound')?.addEventListener('click', () => {
+document.getElementById('previewSound')?.addEventListener('click', (e) => {
+    const btn = e.target;
+    
+    if (currentPreviewAudio) {
+        currentPreviewAudio.pause();
+        currentPreviewAudio.currentTime = 0;
+        currentPreviewAudio = null;
+        btn.textContent = 'Preview';
+        btn.style.background = '#2196f3';
+        return;
+    }
+    
     const filename = document.getElementById('sound').value;
     if (!filename) return alert('Pilih sound dulu');
-    const audio = new Audio('/suara/' + filename);
+    
+    currentPreviewAudio = new Audio('/suara/' + filename);
     const volume = parseFloat(localStorage.getItem('bellVolume') || '0.8');
-    audio.volume = volume;
-    audio.play();
+    currentPreviewAudio.volume = volume;
+    
+    btn.textContent = 'Stop Preview';
+    btn.style.background = '#f44336';
+    
+    currentPreviewAudio.addEventListener('ended', () => {
+        currentPreviewAudio = null;
+        btn.textContent = 'Preview';
+        btn.style.background = '#2196f3';
+    });
+    
+    currentPreviewAudio.play();
 });
 
 // Load history
@@ -481,13 +688,21 @@ async function deleteSkipDay(id) {
 
 // Export jadwal
 document.getElementById('exportJadwal')?.addEventListener('click', async () => {
-    const res = await fetch('/api/jadwal/export');
-    const data = await res.json();
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const filtered = jadwal.filter(j => j.hari === selectedDay);
+    if (filtered.length === 0) return alert(`Tidak ada jadwal di hari ${selectedDay} untuk di-export`);
+    
+    const exportData = filtered.map(item => ({
+        waktu: item.waktu,
+        nama_kegiatan: item.nama_kegiatan,
+        file_audio: item.file_audio,
+        kategori: item.kategori || 'Pelajaran'
+    }));
+    
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'jadwal_backup_' + new Date().toISOString().split('T')[0] + '.json';
+    a.download = `jadwal_${selectedDay}_${new Date().toISOString().split('T')[0]}.json`;
     a.click();
 });
 
@@ -501,18 +716,23 @@ document.getElementById('importFile')?.addEventListener('change', async (e) => {
     if (!file) return;
     
     const text = await file.text();
-    const jadwal = JSON.parse(text);
+    let importData = JSON.parse(text);
     
-    if (!confirm(`Import ${jadwal.length} jadwal?`)) return;
+    if (!confirm(`Import ${importData.length} jadwal ke hari ${selectedDay}?`)) return;
+    
+    importData = importData.map(item => ({
+        ...item,
+        hari: selectedDay
+    }));
     
     const res = await fetch('/api/jadwal/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jadwal })
+        body: JSON.stringify({ jadwal: importData })
     });
     
     const result = await res.json();
-    alert(`Berhasil import ${result.count} jadwal`);
+    alert(`Berhasil import ${result.count} jadwal ke hari ${selectedDay}`);
     e.target.value = '';
     loadJadwal();
 });
@@ -567,6 +787,7 @@ async function checkAutoPlayWithSkip() {
 updateClock();
 setInterval(updateClock, 1000);
 loadSounds();
+loadKategori();
 loadJadwal();
 setInterval(checkAutoPlayWithSkip, 5000);
 setInterval(checkMidnight, 60000);
@@ -574,6 +795,7 @@ setInterval(updateNextBell, 10000);
 setInterval(updateStatusPage, 10000);
 
 if (user.role === 'admin') {
+    loadKategori();
     loadHistory();
     loadSkipDays();
     setInterval(loadHistory, 30000);

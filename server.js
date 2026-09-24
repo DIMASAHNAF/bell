@@ -103,10 +103,44 @@ async function initDB() {
         )
     `);
     
+    db.run(`
+        CREATE TABLE IF NOT EXISTS kategori (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nama TEXT UNIQUE NOT NULL,
+            urutan INTEGER DEFAULT 0
+        )
+    `);
+    
     const userCount = db.exec('SELECT COUNT(*) FROM users');
     if (!userCount.length || userCount[0].values[0][0] === 0) {
         db.run("INSERT INTO users (username, password, role) VALUES ('admin', 'admin', 'admin')");
         db.run("INSERT INTO users (username, password, role) VALUES ('user', 'user', 'user')");
+        saveDB();
+    }
+    
+    const kategoriCount = db.exec('SELECT COUNT(*) FROM kategori');
+    if (!kategoriCount.length || kategoriCount[0].values[0][0] === 0) {
+        const defaultKategori = [
+            'Upacara',
+            'Pelajaran',
+            'Istirahat',
+            'Ekstrakurikuler',
+            'Administrasi',
+            'Pulang'
+        ];
+        defaultKategori.forEach((kat, idx) => {
+            db.run('INSERT OR IGNORE INTO kategori (nama, urutan) VALUES (?, ?)', [kat, idx + 1]);
+        });
+        
+        const existingKategori = db.exec('SELECT DISTINCT kategori FROM jadwal WHERE kategori IS NOT NULL AND kategori != ""');
+        if (existingKategori.length > 0) {
+            let nextOrder = defaultKategori.length + 1;
+            existingKategori[0].values.forEach(row => {
+                if (!defaultKategori.includes(row[0])) {
+                    db.run('INSERT OR IGNORE INTO kategori (nama, urutan) VALUES (?, ?)', [row[0], nextOrder++]);
+                }
+            });
+        }
         saveDB();
     }
     
@@ -249,6 +283,83 @@ app.delete('/api/jadwal/:id', (req, res) => {
     db.run('DELETE FROM jadwal WHERE id = ?', [req.params.id]);
     saveDB();
     res.json({ success: true });
+});
+
+// API: Get all kategori with schedule count
+app.get('/api/kategori', (req, res) => {
+    const result = db.exec(`
+        SELECT k.id, k.nama, k.urutan, COUNT(j.id) as total_jadwal
+        FROM kategori k
+        LEFT JOIN jadwal j ON LOWER(j.kategori) = LOWER(k.nama)
+        GROUP BY k.id, k.nama, k.urutan
+        ORDER BY k.urutan ASC, k.id ASC
+    `);
+    const kategori = result.length > 0 ? result[0].values.map(row => ({
+        id: row[0],
+        nama: row[1],
+        urutan: row[2],
+        total_jadwal: row[3] || 0
+    })) : [];
+    res.json(kategori);
+});
+
+// API: Add kategori
+app.post('/api/kategori', (req, res) => {
+    const { nama } = req.body;
+    if (!nama || !nama.trim()) {
+        return res.status(400).json({ error: 'Nama kategori wajib diisi' });
+    }
+    const cleanName = nama.trim();
+    const check = db.exec('SELECT id FROM kategori WHERE LOWER(nama) = LOWER(?)', [cleanName]);
+    if (check.length > 0 && check[0].values.length > 0) {
+        return res.status(400).json({ error: 'Kategori tersebut sudah ada' });
+    }
+    const maxOrder = db.exec('SELECT MAX(urutan) FROM kategori');
+    const nextOrder = (maxOrder.length > 0 && maxOrder[0].values[0][0]) ? maxOrder[0].values[0][0] + 1 : 1;
+    db.run('INSERT INTO kategori (nama, urutan) VALUES (?, ?)', [cleanName, nextOrder]);
+    saveDB();
+    res.json({ success: true, nama: cleanName });
+});
+
+// API: Update kategori
+app.put('/api/kategori/:id', (req, res) => {
+    const { nama } = req.body;
+    if (!nama || !nama.trim()) {
+        return res.status(400).json({ error: 'Nama kategori wajib diisi' });
+    }
+    const cleanName = nama.trim();
+    const catResult = db.exec('SELECT id, nama FROM kategori WHERE id = ?', [req.params.id]);
+    if (!catResult.length || !catResult[0].values.length) {
+        return res.status(404).json({ error: 'Kategori tidak ditemukan' });
+    }
+    const oldName = catResult[0].values[0][1];
+    
+    // Check duplicate
+    const check = db.exec('SELECT id FROM kategori WHERE LOWER(nama) = LOWER(?) AND id != ?', [cleanName, req.params.id]);
+    if (check.length > 0 && check[0].values.length > 0) {
+        return res.status(400).json({ error: 'Nama kategori sudah digunakan' });
+    }
+    
+    db.run('UPDATE kategori SET nama = ? WHERE id = ?', [cleanName, req.params.id]);
+    db.run('UPDATE jadwal SET kategori = ? WHERE kategori = ?', [cleanName, oldName]);
+    saveDB();
+    res.json({ success: true, oldName, newName: cleanName });
+});
+
+// API: Delete kategori
+app.delete('/api/kategori/:id', (req, res) => {
+    const catResult = db.exec('SELECT id, nama FROM kategori WHERE id = ?', [req.params.id]);
+    if (!catResult.length || !catResult[0].values.length) {
+        return res.status(404).json({ error: 'Kategori tidak ditemukan' });
+    }
+    const catName = catResult[0].values[0][1];
+    const reassignTo = req.query.reassignTo || 'Pelajaran';
+    
+    // Alihkan jadwal yang menggunakan kategori ini ke kategori fallback
+    db.run('UPDATE jadwal SET kategori = ? WHERE kategori = ?', [reassignTo, catName]);
+    db.run('DELETE FROM kategori WHERE id = ?', [req.params.id]);
+    saveDB();
+    res.json({ success: true, deleted: catName, fallback: reassignTo });
 });
 
 // Server-side audio player function

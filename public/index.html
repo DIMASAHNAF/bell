@@ -18,6 +18,7 @@
         <div class="nav-links">
             <a href="#" class="nav-link active" data-page="status">Status</a>
             <a href="#" class="nav-link admin-only" data-page="jadwal" style="display:none;">Jadwal Bell</a>
+            <a href="#" class="nav-link admin-only" data-page="kategori" style="display:none;">Kelola Kategori</a>
             <a href="#" class="nav-link admin-only" data-page="sounds" style="display:none;">Data Sound</a>
             <a href="#" class="nav-link admin-only" data-page="history" style="display:none;">History</a>
             <a href="#" class="nav-link admin-only" data-page="settings" style="display:none;">Settings</a>
@@ -86,14 +87,9 @@
                             <input type="text" id="nama" placeholder="Upacara" required>
                         </div>
                         <div class="col">
-                            <label>Kategori</label>
+                            <label>Kategori <a href="#" id="btnKelolaKategoriShortcut" style="font-size:11px;color:#10b981;font-weight:normal;text-decoration:none;">(Kelola)</a></label>
                             <select id="kategori" required>
-                                <option value="Upacara">Upacara</option>
-                                <option value="Pelajaran" selected>Pelajaran</option>
-                                <option value="Istirahat">Istirahat</option>
-                                <option value="Ekstrakurikuler">Ekstrakurikuler</option>
-                                <option value="Administrasi">Administrasi</option>
-                                <option value="Pulang">Pulang</option>
+                                <option value="">Pilih Kategori...</option>
                             </select>
                         </div>
                         <div class="col">
@@ -132,6 +128,46 @@
                         </tr>
                     </thead>
                     <tbody id="jadwalTable"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- KATEGORI PAGE (Admin) -->
+        <div id="page-kategori" class="page admin-only" style="display:none;">
+            <div class="card">
+                <div class="card-header" id="kategoriFormTitle">Tambah Kategori Baru</div>
+                <form id="kategoriForm" class="form">
+                    <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
+                        <div style="flex:1;min-width:240px;">
+                            <label for="kategoriNama">Nama Kategori</label>
+                            <input type="text" id="kategoriNama" placeholder="Contoh: Upacara, Istirahat, Literasi..." required style="width:100%;padding:10px;border:2px solid #e0e0e0;border-radius:6px;font-size:14px;">
+                        </div>
+                        <input type="hidden" id="kategoriEditId" value="">
+                        <div style="display:flex;gap:8px;">
+                            <button type="submit" id="kategoriSubmitBtn" style="padding:10px 20px;background:#10b981;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Tambah Kategori</button>
+                            <button type="button" id="kategoriCancelBtn" style="display:none;padding:10px 16px;background:#9e9e9e;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Batal</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    Daftar Kategori Bell
+                    <span style="font-size:13px;color:#666;font-weight:normal;margin-left:8px;">(Kategori untuk mengelompokkan jadwal bel harian)</span>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width:60px;">No</th>
+                            <th>Nama Kategori</th>
+                            <th style="width:200px;">Jadwal Menggunakan</th>
+                            <th style="width:180px;">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="kategoriTable">
+                        <tr><td colspan="4" style="text-align:center;color:#999;">Memuat kategori...</td></tr>
+                    </tbody>
                 </table>
             </div>
         </div>
