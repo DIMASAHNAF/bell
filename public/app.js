@@ -39,7 +39,15 @@ function updateStatusPage() {
     const now = new Date();
     const currentTime = now.toTimeString().substring(0, 5);
     const todayName = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'][now.getDay()];
-    const filtered = jadwal.filter(j => j.hari === todayName);
+    const filtered = jadwal.filter(j => {
+        if (j.hari !== todayName) return false;
+        if (todayName === 'Senin') {
+            if (j.mode === 'upacara' && currentModeSenin !== 'upacara') return false;
+            if (j.mode === 'hujan' && currentModeSenin !== 'hujan') return false;
+        }
+        return true;
+    });
+    filtered.sort((a, b) => a.waktu.localeCompare(b.waktu));
     
     const next = filtered.find(j => j.waktu.substring(0, 5) > currentTime);
     const info = document.getElementById('nextBellInfo');
@@ -180,6 +188,128 @@ async function deleteSound(filename) {
     loadSounds();
 }
 
+// ==========================================
+// MODE HARI SENIN (UPACARA vs HUJAN/MENDUNG)
+// ==========================================
+let currentModeSenin = 'upacara';
+
+async function loadModeSenin() {
+    try {
+        const res = await fetch('/api/mode-senin');
+        const data = await res.json();
+        currentModeSenin = data.mode || 'upacara';
+        updateModeSeninUI();
+    } catch (e) {
+        console.error('Error loadModeSenin:', e);
+    }
+}
+
+async function toggleModeSenin() {
+    const newMode = currentModeSenin === 'upacara' ? 'hujan' : 'upacara';
+    try {
+        const res = await fetch('/api/mode-senin', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: newMode })
+        });
+        const data = await res.json();
+        if (data.success) {
+            currentModeSenin = data.mode;
+            updateModeSeninUI();
+            renderTable();
+            updateStatusPage();
+        }
+    } catch (e) {
+        alert('Gagal mengubah mode: ' + e.message);
+    }
+}
+
+function updateModeSeninUI() {
+    const isHujan = currentModeSenin === 'hujan';
+    
+    const icon = document.getElementById('modeSeninIcon');
+    const title = document.getElementById('modeSeninTitle');
+    const badge = document.getElementById('modeSeninBadge');
+    const desc = document.getElementById('modeSeninDesc');
+    const btnTexts = document.querySelectorAll('.btnToggleModeSeninText');
+    const btnIcons = document.querySelectorAll('.btnToggleModeSeninIcon');
+    const noticeIcon = document.getElementById('modeSeninNoticeIcon');
+    const noticeText = document.getElementById('modeSeninNoticeText');
+
+    if (icon) icon.textContent = isHujan ? '🌧️' : '☀️';
+    if (title) title.textContent = isHujan ? 'Mode Hari Senin: Hujan / Tanpa Upacara' : 'Mode Hari Senin: Upacara Normal';
+    if (badge) {
+        badge.textContent = isHujan ? 'MODE HUJAN (UPACARA NONAKTIF)' : 'UPACARA AKTIF';
+        badge.style.background = isHujan ? '#fee2e2' : '#dcfce7';
+        badge.style.color = isHujan ? '#b91c1c' : '#15803d';
+    }
+    if (desc) {
+        desc.textContent = isHujan 
+            ? 'Bel baris 07:10 & Upacara 07:15 dinonaktifkan (skip). Bel Les 1 & Doa Pagi langsung di kelas.'
+            : 'Bel persiapan upacara (07:10) & bel upacara (07:15) berbunyi normal.';
+    }
+    btnTexts.forEach(el => {
+        el.textContent = isHujan ? 'Kembalikan ke Mode Upacara Normal ☀️' : 'Ganti ke Mode Hujan (Tanpa Upacara) 🌧️';
+    });
+    btnIcons.forEach(el => {
+        el.textContent = isHujan ? '☀️' : '🌧️';
+    });
+    if (noticeIcon) noticeIcon.textContent = isHujan ? '🌧️' : '☀️';
+    if (noticeText) {
+        noticeText.textContent = isHujan 
+            ? 'Hari Senin: Mode Hujan (Bel Baris & Upacara Dinonaktifkan)'
+            : 'Hari Senin: Mode Upacara Normal (Bel Baris & Upacara Aktif)';
+    }
+}
+
+document.addEventListener('click', (e) => {
+    if (e.target.closest('.btnToggleModeSenin')) {
+        toggleModeSenin();
+    }
+});
+
+// Auto-apply rombal schedule once
+let isSyncingRombal = false;
+async function autoApplyRombalSchedule() {
+    if (localStorage.getItem('rombal_v6_synced') === 'true' || isSyncingRombal) return;
+    isSyncingRombal = true;
+    try {
+        console.log('Syncing rombal baru lengkap Senin-Jumat (v6)...');
+        const resData = await fetch('/jadwal_rombal_baru.json');
+        const newSchedule = await resData.json();
+        
+        const resAll = await fetch('/api/jadwal/all');
+        const existing = await resAll.json();
+        
+        const targetDays = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'];
+        for (const item of existing) {
+            if (targetDays.includes(item.hari)) {
+                await fetch(`/api/jadwal/${item.id}`, { method: 'DELETE' });
+            }
+        }
+        
+        for (const item of newSchedule) {
+            await fetch('/api/jadwal', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(item)
+            });
+        }
+        
+        localStorage.setItem('rombal_v6_synced', 'true');
+        console.log('✓ Rombal baru lengkap (v6) berhasil diterapkan');
+        const resAfter = await fetch('/api/jadwal/all');
+        jadwal = await resAfter.json();
+        initDayTabs();
+        renderTable();
+        updateStatusPage();
+    } catch (e) {
+        console.error('Auto sync error:', e);
+    } finally {
+        isSyncingRombal = false;
+    }
+}
+
 // Load jadwal
 async function loadJadwal() {
     const res = await fetch('/api/jadwal/all');
@@ -187,6 +317,10 @@ async function loadJadwal() {
     initDayTabs();
     renderTable();
     updateStatusPage();
+    
+    if (localStorage.getItem('rombal_v6_synced') !== 'true') {
+        autoApplyRombalSchedule();
+    }
 }
 
 function renderTable() {
@@ -227,13 +361,33 @@ function renderTable() {
             const itemTime = item.waktu.substring(0, 5);
             const hasPassed = itemTime < currentTime;
             
+            let modeBadge = '';
+            let isItemSkipped = false;
+            if (item.hari === 'Senin') {
+                if (item.mode === 'upacara') {
+                    if (currentModeSenin !== 'upacara') {
+                        isItemSkipped = true;
+                        modeBadge = ' <span style="padding:2px 6px;background:#f1f5f9;color:#64748b;border-radius:10px;font-size:10px;font-weight:600;">(Dilewati / Mode Hujan)</span>';
+                    } else {
+                        modeBadge = ' <span style="padding:2px 6px;background:#dbeafe;color:#1e40af;border-radius:10px;font-size:10px;font-weight:600;">☀️ Upacara</span>';
+                    }
+                } else if (item.mode === 'hujan') {
+                    if (currentModeSenin !== 'hujan') {
+                        isItemSkipped = true;
+                        modeBadge = ' <span style="padding:2px 6px;background:#f1f5f9;color:#64748b;border-radius:10px;font-size:10px;font-weight:600;">(Hanya Saat Hujan)</span>';
+                    } else {
+                        modeBadge = ' <span style="padding:2px 6px;background:#fee2e2;color:#b91c1c;border-radius:10px;font-size:10px;font-weight:600;">🌧️ Mode Hujan</span>';
+                    }
+                }
+            }
+            
             html += `
-                <tr ${isActive ? 'style="background:#fffacd;font-weight:600;"' : ''}>
+                <tr ${isActive ? 'style="background:#fffacd;font-weight:600;"' : (isItemSkipped ? 'style="opacity:0.55;background:#fafafa;"' : '')}>
                     <td>
                         ${item.waktu}
                         ${hasPassed ? '<span style="display:inline-block;margin-left:8px;padding:2px 8px;background:#9e9e9e;color:white;border-radius:12px;font-size:11px;font-weight:600;">Sudah Bunyi</span>' : ''}
                     </td>
-                    <td>${item.nama_kegiatan}</td>
+                    <td>${item.nama_kegiatan}${modeBadge}</td>
                     <td>
                         <audio controls src="/suara/${item.file_audio}" style="height:40px;width:250px;" ${hasPassed ? 'title="Bell sudah berbunyi"' : ''}></audio>
                     </td>
@@ -737,6 +891,52 @@ document.getElementById('importFile')?.addEventListener('change', async (e) => {
     loadJadwal();
 });
 
+// Terapkan Jadwal Rombal Baru (Foto)
+document.getElementById('btnTerapkanJadwalBaru')?.addEventListener('click', async () => {
+    if (!confirm('Terapkan jadwal baru Senin - Jumat sesuai foto rombal? (Jadwal lama Senin-Jumat akan digantikan dengan jadwal baru ini)')) {
+        return;
+    }
+    
+    const btn = document.getElementById('btnTerapkanJadwalBaru');
+    const oldText = btn.textContent;
+    btn.textContent = 'Memproses...';
+    btn.disabled = true;
+    
+    try {
+        const resData = await fetch('/jadwal_rombal_baru.json');
+        const newSchedule = await resData.json();
+        
+        // 1. Ambil jadwal yang ada
+        const resAll = await fetch('/api/jadwal/all');
+        const existing = await resAll.json();
+        
+        // 2. Hapus jadwal lama Senin-Jumat
+        const targetDays = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'];
+        for (const item of existing) {
+            if (targetDays.includes(item.hari)) {
+                await fetch(`/api/jadwal/${item.id}`, { method: 'DELETE' });
+            }
+        }
+        
+        // 3. Masukkan jadwal baru
+        for (const item of newSchedule) {
+            await fetch('/api/jadwal', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(item)
+            });
+        }
+        
+        alert(`Berhasil! ${newSchedule.length} jadwal baru (Senin s.d. Jumat) telah diterapkan ke sistem.`);
+        loadJadwal();
+    } catch (err) {
+        alert('Gagal menerapkan jadwal: ' + err.message);
+    } finally {
+        btn.textContent = oldText;
+        btn.disabled = false;
+    }
+});
+
 // Update checkAutoPlay with skip days check
 async function checkAutoPlayWithSkip() {
     const now = new Date();
@@ -762,6 +962,12 @@ async function checkAutoPlayWithSkip() {
         const itemTime = item.waktu.substring(0, 5);
         const key = item.id + '-' + currentTime;
         
+        // Skip jika hari Senin dan mode tidak cocok
+        if (item.hari === 'Senin') {
+            if (item.mode === 'upacara' && currentModeSenin !== 'upacara') return;
+            if (item.mode === 'hujan' && currentModeSenin !== 'hujan') return;
+        }
+
         if (item.hari === todayName && itemTime === currentTime && !played.has(key)) {
             const audio = new Audio('/suara/' + item.file_audio);
             audio.volume = volume;
@@ -788,6 +994,7 @@ updateClock();
 setInterval(updateClock, 1000);
 loadSounds();
 loadKategori();
+loadModeSenin();
 loadJadwal();
 setInterval(checkAutoPlayWithSkip, 5000);
 setInterval(checkMidnight, 60000);

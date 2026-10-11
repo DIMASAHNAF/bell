@@ -46,6 +46,28 @@
                 </div>
             </div>
             
+            <!-- WIDGET SWITCH MODE UPACARA / HUJAN SENIN -->
+            <div id="modeSeninWidget" class="card" style="padding:16px 20px;border-left:5px solid #6366f1;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+                <div style="display:flex;align-items:center;gap:14px;">
+                    <div id="modeSeninIcon" style="font-size:32px;line-height:1;">☀️</div>
+                    <div>
+                        <div style="font-size:15px;font-weight:700;color:#1e293b;display:flex;align-items:center;gap:8px;">
+                            <span id="modeSeninTitle">Mode Hari Senin: Upacara Normal</span>
+                            <span id="modeSeninBadge" style="padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;background:#dcfce7;color:#15803d;">UPACARA</span>
+                        </div>
+                        <div id="modeSeninDesc" style="font-size:13px;color:#64748b;margin-top:2px;">
+                            Bel baris upacara aktif (07:10 & 07:15).
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <button type="button" class="btnToggleModeSenin" style="padding:9px 16px;border:none;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;background:#4f46e5;color:white;display:flex;align-items:center;gap:8px;">
+                        <span class="btnToggleModeSeninIcon">🌧️</span>
+                        <span class="btnToggleModeSeninText">Ganti ke Mode Hujan (Tanpa Upacara)</span>
+                    </button>
+                </div>
+            </div>
+
             <div class="card">
                 <div class="card-header">Jadwal Hari Ini</div>
                 <table>
@@ -109,13 +131,23 @@
             <div class="card">
                 <div class="card-header">
                     Daftar Jadwal
-                    <div style="float:right;display:flex;gap:8px;">
+                    <div style="float:right;display:flex;gap:8px;flex-wrap:wrap;">
+                        <button id="btnTerapkanJadwalBaru" style="padding:6px 12px;background:#2196f3;color:white;border:none;border-radius:4px;cursor:pointer;font-size:13px;font-weight:600;">⚡ Terapkan Jadwal Baru (Foto)</button>
                         <button id="exportJadwal" style="padding:6px 12px;background:#4caf50;color:white;border:none;border-radius:4px;cursor:pointer;font-size:13px;">Export JSON</button>
                         <button id="importJadwal" style="padding:6px 12px;background:#ff9800;color:white;border:none;border-radius:4px;cursor:pointer;font-size:13px;">Import JSON</button>
                         <input type="file" id="importFile" accept=".json" style="display:none;">
                     </div>
                 </div>
                 <div id="nextBellIndicator" style="padding:12px;background:#e8f5e9;border-radius:4px;margin-bottom:12px;font-weight:600;color:#2e7d32;"></div>
+                <div id="modeSeninJadwalNotice" style="padding:10px 16px;border-radius:6px;background:#e0e7ff;color:#3730a3;font-size:13px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span id="modeSeninNoticeIcon" style="font-size:18px;">☀️</span>
+                        <span id="modeSeninNoticeText">Hari Senin saat ini: Mode Upacara Normal</span>
+                    </div>
+                    <button type="button" class="btnToggleModeSenin" style="padding:6px 12px;background:#4f46e5;color:white;border:none;border-radius:4px;cursor:pointer;font-size:12px;font-weight:600;">
+                        🔄 Switch Mode Upacara / Hujan
+                    </button>
+                </div>
                 <div id="dayTabs" style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;"></div>
                 <table>
                     <thead>

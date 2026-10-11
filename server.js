@@ -55,9 +55,13 @@ async function initDB() {
             waktu TEXT NOT NULL,
             nama_kegiatan TEXT NOT NULL,
             file_audio TEXT NOT NULL,
-            kategori TEXT DEFAULT 'Pelajaran'
+            kategori TEXT DEFAULT 'Pelajaran',
+            mode TEXT DEFAULT 'all'
         )
     `);
+    try {
+        db.run("ALTER TABLE jadwal ADD COLUMN mode TEXT DEFAULT 'all'");
+    } catch (_) {}
     
     db.run(`
         CREATE TABLE IF NOT EXISTS users (
@@ -168,6 +172,27 @@ async function initDB() {
         saveDB();
         console.log('✓ Seed data inserted');
     }
+
+    // Auto-migrate rombal schedule from public/jadwal_rombal_baru.json
+    try {
+        db.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('mode_upacara_senin', 'upacara')");
+        const rombalCheck = db.exec("SELECT value FROM settings WHERE key = 'rombal_v6_applied'");
+        if (!rombalCheck.length || rombalCheck[0].values[0][0] !== '1') {
+            const jsonPath = path.join(__dirname, 'public', 'jadwal_rombal_baru.json');
+            if (fs.existsSync(jsonPath)) {
+                const newSchedule = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+                db.run("DELETE FROM jadwal WHERE hari IN ('Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat')");
+                newSchedule.forEach(item => {
+                    db.run('INSERT INTO jadwal (hari, waktu, nama_kegiatan, file_audio, kategori, mode) VALUES (?, ?, ?, ?, ?, ?)',
+                        [item.hari, item.waktu, item.nama_kegiatan, item.file_audio, item.kategori || 'Pelajaran', item.mode || 'all']);
+                });
+                db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('rombal_v6_applied', '1')");
+                console.log(`✓ [MIGRATION] ${newSchedule.length} jadwal rombal baru (Senin-Jumat) berhasil dimasukkan ke database.`);
+            }
+        }
+    } catch (migErr) {
+        console.error('Error auto-migrating schedule:', migErr);
+    }
 }
 
 function saveDB() {
@@ -186,17 +211,23 @@ const storage = multer.diskStorage({
         cb(null, dir);
     },
     filename: (req, file, cb) => {
-        cb(null, Date.now() + '-' + file.originalname);
+        const ext = path.extname(file.originalname).toLowerCase() || '.mp3';
+        const base = path.basename(file.originalname, path.extname(file.originalname))
+            .toLowerCase()
+            .replace(/[^a-z0-9_-]/g, '_')
+            .replace(/_+/g, '_')
+            .replace(/^_|_$/g, '');
+        cb(null, (base || 'audio') + ext);
     }
 });
 
 const upload = multer({
     storage,
     fileFilter: (req, file, cb) => {
-        if (file.mimetype === 'audio/mpeg') {
+        if (file.originalname.toLowerCase().endsWith('.mp3') || file.mimetype.includes('audio')) {
             cb(null, true);
         } else {
-            cb(new Error('Only .mp3 allowed'), false);
+            cb(new Error('Hanya file .mp3 yang diizinkan'), false);
         }
     }
 });
@@ -234,16 +265,33 @@ app.post('/api/login', (req, res) => {
 app.get('/api/audio', (req, res) => {
     const dir = path.join(__dirname, 'public', 'suara');
     if (!fs.existsSync(dir)) return res.json([]);
-    const files = fs.readdirSync(dir).filter(f => f.endsWith('.mp3'));
+    const files = fs.readdirSync(dir).filter(f => f.toLowerCase().endsWith('.mp3'));
     res.json(files);
+});
+
+// API: Get mode upacara Senin
+app.get('/api/mode-senin', (req, res) => {
+    const result = db.exec("SELECT value FROM settings WHERE key = 'mode_upacara_senin'");
+    const mode = (result.length > 0 && result[0].values.length > 0) ? result[0].values[0][0] : 'upacara';
+    res.json({ mode });
+});
+
+// API: Set mode upacara Senin
+app.post('/api/mode-senin', (req, res) => {
+    const { mode } = req.body;
+    const validMode = mode === 'hujan' ? 'hujan' : 'upacara';
+    db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('mode_upacara_senin', ?)", [validMode]);
+    saveDB();
+    console.log(`🌦️ [MODE SENIN] Mode hari Senin diubah ke: ${validMode.toUpperCase()}`);
+    res.json({ success: true, mode: validMode });
 });
 
 // API: Get all jadwal
 app.get('/api/jadwal/all', (req, res) => {
-    const result = db.exec('SELECT * FROM jadwal ORDER BY hari, waktu');
+    const result = db.exec('SELECT id, hari, waktu, nama_kegiatan, file_audio, kategori, mode FROM jadwal ORDER BY hari, waktu');
     const jadwal = result.length > 0 ? result[0].values.map(row => ({
         id: row[0], hari: row[1], waktu: row[2],
-        nama_kegiatan: row[3], file_audio: row[4], kategori: row[5]
+        nama_kegiatan: row[3], file_audio: row[4], kategori: row[5], mode: row[6] || 'all'
     })) : [];
     res.json(jadwal);
 });
@@ -252,28 +300,45 @@ app.get('/api/jadwal/all', (req, res) => {
 app.get('/api/jadwal', (req, res) => {
     const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
     const today = days[new Date().getDay()];
-    const result = db.exec('SELECT * FROM jadwal WHERE hari = ? ORDER BY waktu', [today]);
+    const result = db.exec('SELECT id, hari, waktu, nama_kegiatan, file_audio, kategori, mode FROM jadwal WHERE hari = ? ORDER BY waktu', [today]);
     const jadwal = result.length > 0 ? result[0].values.map(row => ({
         id: row[0], hari: row[1], waktu: row[2],
-        nama_kegiatan: row[3], file_audio: row[4], kategori: row[5]
+        nama_kegiatan: row[3], file_audio: row[4], kategori: row[5], mode: row[6] || 'all'
     })) : [];
     res.json({ hari: today, jadwal });
 });
 
+// API: Manual trigger sync rombal baru
+app.get('/api/sync-rombal', (req, res) => {
+    try {
+        const jsonPath = path.join(__dirname, 'public', 'jadwal_rombal_baru.json');
+        const newSchedule = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+        db.run("DELETE FROM jadwal WHERE hari IN ('Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat')");
+        newSchedule.forEach(item => {
+            db.run('INSERT INTO jadwal (hari, waktu, nama_kegiatan, file_audio, kategori, mode) VALUES (?, ?, ?, ?, ?, ?)',
+                [item.hari, item.waktu, item.nama_kegiatan, item.file_audio, item.kategori || 'Pelajaran', item.mode || 'all']);
+        });
+        db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('rombal_v6_applied', '1')");
+        res.json({ success: true, count: newSchedule.length });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // API: Add jadwal
 app.post('/api/jadwal', (req, res) => {
-    const { hari, waktu, nama_kegiatan, file_audio, kategori } = req.body;
-    db.run('INSERT INTO jadwal (hari, waktu, nama_kegiatan, file_audio, kategori) VALUES (?, ?, ?, ?, ?)', 
-        [hari, waktu, nama_kegiatan, file_audio, kategori || 'Pelajaran']);
+    const { hari, waktu, nama_kegiatan, file_audio, kategori, mode } = req.body;
+    db.run('INSERT INTO jadwal (hari, waktu, nama_kegiatan, file_audio, kategori, mode) VALUES (?, ?, ?, ?, ?, ?)', 
+        [hari, waktu, nama_kegiatan, file_audio, kategori || 'Pelajaran', mode || 'all']);
     saveDB();
     res.json({ success: true });
 });
 
 // API: Update jadwal
 app.put('/api/jadwal/:id', (req, res) => {
-    const { hari, waktu, nama_kegiatan, file_audio, kategori } = req.body;
-    db.run('UPDATE jadwal SET hari = ?, waktu = ?, nama_kegiatan = ?, file_audio = ?, kategori = ? WHERE id = ?', 
-        [hari, waktu, nama_kegiatan, file_audio, kategori || 'Pelajaran', req.params.id]);
+    const { hari, waktu, nama_kegiatan, file_audio, kategori, mode } = req.body;
+    db.run('UPDATE jadwal SET hari = ?, waktu = ?, nama_kegiatan = ?, file_audio = ?, kategori = ?, mode = ? WHERE id = ?', 
+        [hari, waktu, nama_kegiatan, file_audio, kategori || 'Pelajaran', mode || 'all', req.params.id]);
     saveDB();
     res.json({ success: true });
 });
@@ -363,20 +428,42 @@ app.delete('/api/kategori/:id', (req, res) => {
 });
 
 // Server-side audio player function
+let currentAudioProcess = null;
+
 function playAudioServer(filename) {
     if (!filename) return;
     const filePath = path.join(__dirname, 'public', 'suara', filename);
-    if (fs.existsSync(filePath)) {
-        // Coba putar lewat mpg123
-        exec(`mpg123 -q "${filePath}"`, (err) => {
-            if (err) {
+    if (!fs.existsSync(filePath)) {
+        console.warn(`[Audio] File audio tidak ditemukan: ${filePath}`);
+        return;
+    }
+
+    // Periksa apakah server memiliki hardware audio (/dev/snd)
+    // Di container headless (seperti LXC Proxmox tanpa passthrough sound card),
+    // menjalankan mpg123 akan menyebabkan loop CPU 100% tanpa henti.
+    if (!fs.existsSync('/dev/snd')) {
+        return;
+    }
+
+    // Jika proses audio sebelumnya masih berjalan, hentikan dulu agar tidak menumpuk
+    if (currentAudioProcess) {
+        try {
+            currentAudioProcess.kill('SIGKILL');
+        } catch (_) {}
+        currentAudioProcess = null;
+    }
+
+    try {
+        currentAudioProcess = exec(`mpg123 -q "${filePath}"`, { timeout: 300000, killSignal: 'SIGKILL' }, (err) => {
+            currentAudioProcess = null;
+            if (err && !err.killed) {
                 console.warn(`[Audio] Pemutaran lokal via mpg123: ${err.message}`);
-            } else {
+            } else if (!err) {
                 console.log(`🔔 [Audio] Berhasil memutar di speaker server: ${filename}`);
             }
         });
-    } else {
-        console.warn(`[Audio] File audio tidak ditemukan: ${filePath}`);
+    } catch (e) {
+        console.error(`[Audio] Gagal menjalankan player: ${e.message}`);
     }
 }
 
@@ -546,18 +633,34 @@ function checkServerSchedule() {
         return;
     }
 
-    const result = db.exec('SELECT * FROM jadwal WHERE hari = ?', [todayName]);
+    // Ambil setting mode hari Senin
+    let modeSenin = 'upacara';
+    try {
+        const modeSetting = db.exec("SELECT value FROM settings WHERE key = 'mode_upacara_senin'");
+        if (modeSetting.length > 0 && modeSetting[0].values.length > 0) {
+            modeSenin = modeSetting[0].values[0][0];
+        }
+    } catch (_) {}
+
+    const result = db.exec('SELECT id, hari, waktu, nama_kegiatan, file_audio, kategori, mode FROM jadwal WHERE hari = ?', [todayName]);
     if (result.length > 0 && result[0].values.length > 0) {
         result[0].values.forEach(row => {
             const jadwalId = row[0];
             const waktu = (row[2] || '').substring(0, 5);
             const namaKegiatan = row[3];
             const fileAudio = row[4];
+            const itemMode = row[6] || 'all';
+
+            // Filter jika hari Senin berdasarkan mode cuaca/upacara
+            if (todayName === 'Senin') {
+                if (itemMode === 'upacara' && modeSenin !== 'upacara') return;
+                if (itemMode === 'hujan' && modeSenin !== 'hujan') return;
+            }
 
             const key = `${todayDateStr}_${jadwalId}_${currentTime}`;
             if (waktu === currentTime && !lastPlayedKeys.has(key)) {
                 lastPlayedKeys.add(key);
-                console.log(`🔔 [AUTO-BELL SERVER] Membunyikan: ${namaKegiatan} (${waktu}) - ${fileAudio}`);
+                console.log(`🔔 [AUTO-BELL SERVER] Membunyikan: ${namaKegiatan} (${waktu}) - ${fileAudio} [Mode: ${itemMode}]`);
                 playAudioServer(fileAudio);
 
                 db.run('INSERT INTO bell_logs (jadwal_id, waktu_bunyi, nama_kegiatan, trigger_type, triggered_by) VALUES (?, ?, ?, ?, ?)',
@@ -572,9 +675,9 @@ function checkServerSchedule() {
 initDB().then(() => {
     app.listen(PORT, HOST, () => {
         console.log(`🔔 Bell System running at http://${HOST}:${PORT}`);
-        // Mulai pengecekan jadwal otomatis di background server setiap 5 detik
-        setInterval(checkServerSchedule, 5000);
-        console.log('⏰ Server-side Bell Scheduler aktif (Cek setiap 5 detik)');
+        // Mulai pengecekan jadwal otomatis di background server setiap 10 detik
+        setInterval(checkServerSchedule, 10000);
+        console.log('⏰ Server-side Bell Scheduler aktif (Cek setiap 10 detik)');
     });
 }).catch(err => {
     console.error('Init failed:', err);

@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Migrasi Jadwal Rombal Baru</title>
+</head>
+<body style="font-family: sans-serif; padding: 20px;">
+    <h2>Migrasi Jadwal Senin - Jumat Sesuai Foto</h2>
+    <div id="status">Memproses...</div>
+    <pre id="log" style="background:#f4f4f4; padding: 15px; border-radius: 5px;"></pre>
+
+    <script>
+    const newSchedule = [
+        // === SENIN ===
+        { hari: 'Senin', waktu: '07:00:00', nama_kegiatan: 'Kebersihan', file_audio: '1791701584666-bell  doa  pagi.MP3', kategori: 'Pembiasaan' },
+        { hari: 'Senin', waktu: '07:10:00', nama_kegiatan: '5 Menit Sebelum Upacara', file_audio: '1791701597525-5 menit sebelum upacara.MP3', kategori: 'Upacara' },
+        { hari: 'Senin', waktu: '07:15:00', nama_kegiatan: 'Les 1 (Upacara)', file_audio: '1791701584884-bel sebelum upacara.MP3', kategori: 'Upacara' },
+        { hari: 'Senin', waktu: '08:30:00', nama_kegiatan: 'Les 2', file_audio: '1790222175376-ecyaX04_08_2024_09_02_51.mp3', kategori: 'Pelajaran' },
+        { hari: 'Senin', waktu: '09:05:00', nama_kegiatan: 'Les 3', file_audio: '1790222175268-0Yzxk04_08_2024_09_03_04.mp3', kategori: 'Pelajaran' },
+        { hari: 'Senin', waktu: '09:40:00', nama_kegiatan: 'Les 4', file_audio: '1790222175172-c1qNX04_08_2024_09_03_25.mp3', kategori: 'Pelajaran' },
+        { hari: 'Senin', waktu: '10:00:00', nama_kegiatan: 'LAGU INDONESIA RAYA', file_audio: '1790222173892-Mb8Lq10_07_2025_00_43_58 (1).mp3', kategori: 'Lagu Indonesia Raya' },
+        { hari: 'Senin', waktu: '10:15:00', nama_kegiatan: 'Les 5', file_audio: '1790222175035-TZ2B004_08_2024_09_03_49.mp3', kategori: 'Pelajaran' },
+        { hari: 'Senin', waktu: '10:50:00', nama_kegiatan: 'IST 1 (Istirahat 1)', file_audio: '1790222174886-P4tSo04_08_2024_09_08_26.mp3', kategori: 'Istirahat' },
+        { hari: 'Senin', waktu: '11:05:00', nama_kegiatan: 'Les 6', file_audio: '1790222174433-9GztJ04_08_2024_09_04_07.mp3', kategori: 'Pelajaran' },
+        { hari: 'Senin', waktu: '11:40:00', nama_kegiatan: 'Les 7', file_audio: '1790222174311-Q5aVm04_08_2024_09_04_30.mp3', kategori: 'Pelajaran' },
+        { hari: 'Senin', waktu: '12:15:00', nama_kegiatan: 'IST 2 (Shalat Dzuhur)', file_audio: '1791701584787-shalat dzuhur.MP3', kategori: 'Istirahat' },
+        { hari: 'Senin', waktu: '14:00:00', nama_kegiatan: 'Les 8', file_audio: '1790222173409-hz5gn04_08_2024_09_05_01.mp3', kategori: 'Pelajaran' },
+        { hari: 'Senin', waktu: '14:30:00', nama_kegiatan: 'Les 9', file_audio: '1790222173223-QuDdX04_08_2024_09_05_12.mp3', kategori: 'Pelajaran' },
+        { hari: 'Senin', waktu: '15:00:00', nama_kegiatan: 'Les 10', file_audio: '1790222173097-Tc4Lu04_08_2024_09_07_37.mp3', kategori: 'Pelajaran' },
+        { hari: 'Senin', waktu: '16:00:00', nama_kegiatan: 'Pulang', file_audio: '1791701606358-bel doa pulang.MP3', kategori: 'Pulang' },
+
+        // === SELASA ===
+        { hari: 'Selasa', waktu: '07:15:00', nama_kegiatan: 'Les 1', file_audio: '1790228737727-K2UyB04_08_2024_09_02_18.mp3', kategori: 'Pelajaran' },
+        { hari: 'Selasa', waktu: '07:51:00', nama_kegiatan: 'Les 2', file_audio: '1790222175376-ecyaX04_08_2024_09_02_51.mp3', kategori: 'Pelajaran' },
+        { hari: 'Selasa', waktu: '08:27:00', nama_kegiatan: 'Les 3', file_audio: '1790222175268-0Yzxk04_08_2024_09_03_04.mp3', kategori: 'Pelajaran' },
+        { hari: 'Selasa', waktu: '09:03:00', nama_kegiatan: 'Les 4', file_audio: '1790222175172-c1qNX04_08_2024_09_03_25.mp3', kategori: 'Pelajaran' },
+        { hari: 'Selasa', waktu: '09:39:00', nama_kegiatan: 'Les 5', file_audio: '1790222175035-TZ2B004_08_2024_09_03_49.mp3', kategori: 'Pelajaran' },
+        { hari: 'Selasa', waktu: '10:00:00', nama_kegiatan: 'LAGU INDONESIA RAYA', file_audio: '1790222173892-Mb8Lq10_07_2025_00_43_58 (1).mp3', kategori: 'Lagu Indonesia Raya' },
+        { hari: 'Selasa', waktu: '10:15:00', nama_kegiatan: 'IST 1 (Istirahat 1)', file_audio: '1790222174886-P4tSo04_08_2024_09_08_26.mp3', kategori: 'Istirahat' },
+        { hari: 'Selasa', waktu: '10:32:00', nama_kegiatan: 'Les 6', file_audio: '1790222174433-9GztJ04_08_2024_09_04_07.mp3', kategori: 'Pelajaran' },
+        { hari: 'Selasa', waktu: '11:08:00', nama_kegiatan: 'Les 7', file_audio: '1790222174311-Q5aVm04_08_2024_09_04_30.mp3', kategori: 'Pelajaran' },
+        { hari: 'Selasa', waktu: '11:44:00', nama_kegiatan: 'Les 8', file_audio: '1790222173409-hz5gn04_08_2024_09_05_01.mp3', kategori: 'Pelajaran' },
+        { hari: 'Selasa', waktu: '12:20:00', nama_kegiatan: 'IST 2 (Shalat Dzuhur)', file_audio: '1791701584787-shalat dzuhur.MP3', kategori: 'Istirahat' },
+        { hari: 'Selasa', waktu: '14:00:00', nama_kegiatan: 'Les 9', file_audio: '1790222173223-QuDdX04_08_2024_09_05_12.mp3', kategori: 'Pelajaran' },
+        { hari: 'Selasa', waktu: '14:40:00', nama_kegiatan: 'Les 10', file_audio: '1790222173097-Tc4Lu04_08_2024_09_07_37.mp3', kategori: 'Pelajaran' },
+        { hari: 'Selasa', waktu: '16:00:00', nama_kegiatan: 'Pulang', file_audio: '1791701606358-bel doa pulang.MP3', kategori: 'Pulang' },
+
+        // === RABU ===
+        { hari: 'Rabu', waktu: '07:15:00', nama_kegiatan: 'Les 1', file_audio: '1790228737727-K2UyB04_08_2024_09_02_18.mp3', kategori: 'Pelajaran' },
+        { hari: 'Rabu', waktu: '07:51:00', nama_kegiatan: 'Les 2', file_audio: '1790222175376-ecyaX04_08_2024_09_02_51.mp3', kategori: 'Pelajaran' },
+        { hari: 'Rabu', waktu: '08:27:00', nama_kegiatan: 'Les 3', file_audio: '1790222175268-0Yzxk04_08_2024_09_03_04.mp3', kategori: 'Pelajaran' },
+        { hari: 'Rabu', waktu: '09:03:00', nama_kegiatan: 'Les 4', file_audio: '1790222175172-c1qNX04_08_2024_09_03_25.mp3', kategori: 'Pelajaran' },
+        { hari: 'Rabu', waktu: '09:39:00', nama_kegiatan: 'Les 5', file_audio: '1790222175035-TZ2B004_08_2024_09_03_49.mp3', kategori: 'Pelajaran' },
+        { hari: 'Rabu', waktu: '10:00:00', nama_kegiatan: 'LAGU INDONESIA RAYA', file_audio: '1790222173892-Mb8Lq10_07_2025_00_43_58 (1).mp3', kategori: 'Lagu Indonesia Raya' },
+        { hari: 'Rabu', waktu: '10:15:00', nama_kegiatan: 'IST 1 (Istirahat 1)', file_audio: '1790222174886-P4tSo04_08_2024_09_08_26.mp3', kategori: 'Istirahat' },
+        { hari: 'Rabu', waktu: '10:32:00', nama_kegiatan: 'Les 6', file_audio: '1790222174433-9GztJ04_08_2024_09_04_07.mp3', kategori: 'Pelajaran' },
+        { hari: 'Rabu', waktu: '11:08:00', nama_kegiatan: 'Les 7', file_audio: '1790222174311-Q5aVm04_08_2024_09_04_30.mp3', kategori: 'Pelajaran' },
+        { hari: 'Rabu', waktu: '11:44:00', nama_kegiatan: 'Les 8', file_audio: '1790222173409-hz5gn04_08_2024_09_05_01.mp3', kategori: 'Pelajaran' },
+        { hari: 'Rabu', waktu: '12:20:00', nama_kegiatan: 'IST 2 (Shalat Dzuhur)', file_audio: '1791701584787-shalat dzuhur.MP3', kategori: 'Istirahat' },
+        { hari: 'Rabu', waktu: '14:00:00', nama_kegiatan: 'Les 9', file_audio: '1790222173223-QuDdX04_08_2024_09_05_12.mp3', kategori: 'Pelajaran' },
+        { hari: 'Rabu', waktu: '14:40:00', nama_kegiatan: 'Les 10', file_audio: '1790222173097-Tc4Lu04_08_2024_09_07_37.mp3', kategori: 'Pelajaran' },
+        { hari: 'Rabu', waktu: '16:00:00', nama_kegiatan: 'Pulang', file_audio: '1791701606358-bel doa pulang.MP3', kategori: 'Pulang' },
+
+        // === KAMIS ===
+        { hari: 'Kamis', waktu: '07:15:00', nama_kegiatan: 'Les 1', file_audio: '1790228737727-K2UyB04_08_2024_09_02_18.mp3', kategori: 'Pelajaran' },
+        { hari: 'Kamis', waktu: '07:56:00', nama_kegiatan: 'Les 2', file_audio: '1790222175376-ecyaX04_08_2024_09_02_51.mp3', kategori: 'Pelajaran' },
+        { hari: 'Kamis', waktu: '08:37:00', nama_kegiatan: 'Les 3', file_audio: '1790222175268-0Yzxk04_08_2024_09_03_04.mp3', kategori: 'Pelajaran' },
+        { hari: 'Kamis', waktu: '09:18:00', nama_kegiatan: 'Les 4', file_audio: '1790222175172-c1qNX04_08_2024_09_03_25.mp3', kategori: 'Pelajaran' },
+        { hari: 'Kamis', waktu: '09:59:00', nama_kegiatan: 'IST 1 (Istirahat 1)', file_audio: '1790222174886-P4tSo04_08_2024_09_08_26.mp3', kategori: 'Istirahat' },
+        { hari: 'Kamis', waktu: '10:00:00', nama_kegiatan: 'LAGU INDONESIA RAYA', file_audio: '1790222173892-Mb8Lq10_07_2025_00_43_58 (1).mp3', kategori: 'Lagu Indonesia Raya' },
+        { hari: 'Kamis', waktu: '10:17:00', nama_kegiatan: 'Les 5', file_audio: '1790222175035-TZ2B004_08_2024_09_03_49.mp3', kategori: 'Pelajaran' },
+        { hari: 'Kamis', waktu: '10:58:00', nama_kegiatan: 'Les 6', file_audio: '1790222174433-9GztJ04_08_2024_09_04_07.mp3', kategori: 'Pelajaran' },
+        { hari: 'Kamis', waktu: '11:39:00', nama_kegiatan: 'Les 7', file_audio: '1790222174311-Q5aVm04_08_2024_09_04_30.mp3', kategori: 'Pelajaran' },
+        { hari: 'Kamis', waktu: '12:20:00', nama_kegiatan: 'IST 2 (Shalat Dzuhur)', file_audio: '1791701584787-shalat dzuhur.MP3', kategori: 'Istirahat' },
+        { hari: 'Kamis', waktu: '14:00:00', nama_kegiatan: 'Les 8', file_audio: '1790222173409-hz5gn04_08_2024_09_05_01.mp3', kategori: 'Pelajaran' },
+        { hari: 'Kamis', waktu: '14:40:00', nama_kegiatan: 'Les 9', file_audio: '1790222173223-QuDdX04_08_2024_09_05_12.mp3', kategori: 'Pelajaran' },
+        { hari: 'Kamis', waktu: '16:00:00', nama_kegiatan: 'Pulang', file_audio: '1791701606358-bel doa pulang.MP3', kategori: 'Pulang' },
+
+        // === JUMAT ===
+        { hari: 'Jumat', waktu: '07:00:00', nama_kegiatan: 'Kebersihan', file_audio: '1791701584666-bell  doa  pagi.MP3', kategori: 'Pembiasaan' },
+        { hari: 'Jumat', waktu: '07:45:00', nama_kegiatan: 'Les 1', file_audio: '1790228737727-K2UyB04_08_2024_09_02_18.mp3', kategori: 'Pelajaran' },
+        { hari: 'Jumat', waktu: '08:25:00', nama_kegiatan: 'Les 2', file_audio: '1790222175376-ecyaX04_08_2024_09_02_51.mp3', kategori: 'Pelajaran' },
+        { hari: 'Jumat', waktu: '09:05:00', nama_kegiatan: 'Les 3', file_audio: '1790222175268-0Yzxk04_08_2024_09_03_04.mp3', kategori: 'Pelajaran' },
+        { hari: 'Jumat', waktu: '09:45:00', nama_kegiatan: 'Les 4', file_audio: '1790222175172-c1qNX04_08_2024_09_03_25.mp3', kategori: 'Pelajaran' },
+        { hari: 'Jumat', waktu: '10:00:00', nama_kegiatan: 'LAGU INDONESIA RAYA', file_audio: '1790222173892-Mb8Lq10_07_2025_00_43_58 (1).mp3', kategori: 'Lagu Indonesia Raya' },
+        { hari: 'Jumat', waktu: '10:25:00', nama_kegiatan: 'ISHM (Istirahat)', file_audio: '1790222174886-P4tSo04_08_2024_09_08_26.mp3', kategori: 'Istirahat' },
+        { hari: 'Jumat', waktu: '10:40:00', nama_kegiatan: 'Les 5', file_audio: '1790222175035-TZ2B004_08_2024_09_03_49.mp3', kategori: 'Pelajaran' },
+        { hari: 'Jumat', waktu: '11:20:00', nama_kegiatan: 'Les 6', file_audio: '1790222174433-9GztJ04_08_2024_09_04_07.mp3', kategori: 'Pelajaran' },
+        { hari: 'Jumat', waktu: '12:00:00', nama_kegiatan: 'Keagamaan / Shalat Jumat', file_audio: '1791701584927-bel shalat jumat.MP3', kategori: 'Keagamaan' },
+        { hari: 'Jumat', waktu: '14:00:00', nama_kegiatan: 'Ekskul', file_audio: '1790222175573-1PIuZ04_08_2024_08_58_28 (2).mp3', kategori: 'Ekstrakurikuler' },
+        { hari: 'Jumat', waktu: '16:00:00', nama_kegiatan: 'Pulang', file_audio: '1791701606358-bel doa pulang.MP3', kategori: 'Pulang' }
+    ];
+
+    async function executeMigration() {
+        const log = document.getElementById('log');
+        const status = document.getElementById('status');
+
+        log.textContent += '1. Mengambil data jadwal lama...\n';
+        const resAll = await fetch('/api/jadwal/all');
+        const existing = await resAll.json();
+        log.textContent += `-> Ditemukan ${existing.length} jadwal lama.\n`;
+
+        log.textContent += '2. Menghapus jadwal lama...\n';
+        for (const item of existing) {
+            await fetch(`/api/jadwal/${item.id}`, { method: 'DELETE' });
+        }
+        log.textContent += '-> Berhasil membersihkan jadwal lama.\n';
+
+        log.textContent += `3. Menambahkan ${newSchedule.length} jadwal baru (Senin - Jumat)...\n`;
+        for (const item of newSchedule) {
+            await fetch('/api/jadwal', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(item)
+            });
+            log.textContent += `✓ [${item.hari}] ${item.waktu} - ${item.nama_kegiatan} (${item.kategori})\n`;
+        }
+
+        log.textContent += '\n=== SELESAI SEMPURNA! ===\n';
+        status.innerHTML = '<b style="color: green;">MIGRASI BERHASIL DILAKUKAN! Seluruh jadwal baru aktif.</b>';
+    }
+
+    executeMigration();
+    </script>
+</body>
+</html>
